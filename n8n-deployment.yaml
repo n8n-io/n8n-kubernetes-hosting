@@ -61,7 +61,11 @@ spec:
           name: n8n
           ports:
             - containerPort: 5678
-          resources: {}
+          resources:
+            requests:
+              memory: "250Mi"
+            limits:
+              memory: "500Mi"
           volumeMounts:
             - mountPath: /home/node/.n8n
               name: n8n-claim0
