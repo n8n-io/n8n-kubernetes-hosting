@@ -6,4 +6,4 @@ Get up and running with n8n on the following platforms:
 * [Azure](https://docs.n8n.io/hosting/server-setups/azure/)
 * [Google Cloud Platform](https://docs.n8n.io/hosting/server-setups/google-cloud/)
 
-If you have questions after trying the tutorials, check out the forums.
+If you have questions after trying the tutorials, check out the [forums](https://community.n8n.io/).
