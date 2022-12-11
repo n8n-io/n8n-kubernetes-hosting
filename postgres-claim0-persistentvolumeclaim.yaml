@@ -4,9 +4,9 @@ metadata:
   name: postgresql-pv
   namespace: n8n
 spec:
-  storageClassName: gp2
+  storageClassName: manual
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 300Gi
+      storage: 30Gi
