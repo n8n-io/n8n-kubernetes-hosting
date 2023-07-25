@@ -18,8 +18,9 @@ spec:
         service: n8n
     spec:
       containers:
-        - args:
+        - command:
             - /bin/sh
+          args:
             - -c
             - sleep 5; n8n start
           env:
