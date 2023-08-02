@@ -1,15 +1,61 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgresql-pv
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 300Gi
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: n8n
+  name: postgres
+type: Opaque
+stringData:
+  POSTGRES_USER: changeUser
+  POSTGRES_PASSWORD: changePassword
+  POSTGRES_DB: n8n
+  POSTGRES_NON_ROOT_USER: changeUser
+  POSTGRES_NON_ROOT_PASSWORD: changePassword
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-data
+  namespace: n8n
+data:
+  init-data.sh: |
+    #!/bin/bash
+    set -e;
+    if [ -n "${POSTGRES_NON_ROOT_USER:-}" ] && [ -n "${POSTGRES_NON_ROOT_PASSWORD:-}" ]; then
+    	psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    		CREATE USER "${POSTGRES_NON_ROOT_USER}" WITH PASSWORD '${POSTGRES_NON_ROOT_PASSWORD}';
+    		GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO "${POSTGRES_NON_ROOT_USER}";
+    	EOSQL
+    else
+    	echo "SETUP INFO: No Environment variables given!"
+    fi
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    service: postgres-n8n
+    service: postgres
   name: postgres
   namespace: n8n
 spec:
   replicas: 1
   selector:
     matchLabels:
-      service: postgres-n8n
+      service: postgres
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -18,7 +64,7 @@ spec:
   template:
     metadata:
       labels:
-        service: postgres-n8n
+        service: postgres
     spec:
       containers:
         - image: postgres:11
@@ -40,7 +86,7 @@ spec:
               subPath: init-data.sh
           env:
             - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata      
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -79,3 +125,18 @@ spec:
           configMap:
             name: init-data
             defaultMode: 0744
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: n8n
+  labels:
+    service: postgres
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+  selector:
+    service: postgres

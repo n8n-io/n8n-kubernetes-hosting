@@ -1,8 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pv
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    service: n8n
   name: n8n
   namespace: n8n
 spec:
@@ -27,7 +38,7 @@ spec:
             - name: DB_TYPE
               value: postgresdb
             - name: DB_POSTGRESDB_HOST
-              value: postgres-service.n8n.svc.cluster.local
+              value: postgres.n8n.svc.cluster.local
             - name: DB_POSTGRESDB_PORT
               value: "5432"
             - name: DB_POSTGRESDB_DATABASE
@@ -35,18 +46,18 @@ spec:
             - name: DB_POSTGRESDB_USER
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
+                  name: postgres
                   key: POSTGRES_NON_ROOT_USER
             - name: DB_POSTGRESDB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_NON_ROOT_PASSWORD 
+                  name: postgres
+                  key: POSTGRES_NON_ROOT_PASSWORD
             - name: N8N_PROTOCOL
               value: http
             - name: N8N_PORT
               value: "5678"
-          image: n8nio/n8n
+          image: n8nio/n8n:latest
           name: n8n
           ports:
             - containerPort: 5678
@@ -57,15 +68,48 @@ spec:
               memory: "500Mi"
           volumeMounts:
             - mountPath: /home/node/.n8n
-              name: n8n-claim0
+              name: n8n-pv
       restartPolicy: Always
       volumes:
-        - name: n8n-claim0
+        - name: n8n-pv
           persistentVolumeClaim:
-            claimName: n8n-claim0
-        - name: n8n-secret
+            claimName: n8n-pv
+        # - name: n8n
+        #   secret:
+        #     secretName: n8n
+        - name: postgres
           secret:
-            secretName: n8n-secret
-        - name: postgres-secret
-          secret:
-            secretName: postgres-secret
+            secretName: postgres
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: n8n
+spec:
+  type: ClusterIP
+  selector:
+    service: n8n
+  ports:
+    - name: "5678"
+      port: 5678
+      targetPort: 5678
+      protocol: TCP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: n8n
+            port:
+              number: 5678
