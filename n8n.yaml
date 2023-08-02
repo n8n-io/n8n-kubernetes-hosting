@@ -11,6 +11,33 @@ spec:
       storage: 2Gi
 
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-env
+  namespace: n8n
+data:
+  DB_TYPE: postgresdb
+  DB_POSTGRESDB_HOST: postgres.n8n.svc.cluster.local
+  DB_POSTGRESDB_DATABASE: n8n
+  QUEUE_BULL_REDIS_HOST: redis.n8n.svc.cluster.local
+  EXECUTIONS_MODE: queue
+  N8N_PORT: "5678"
+  WEBHOOK_URL: http://localhost # Change this to your domain
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: n8n
+  name: n8n-secrets
+type: Opaque
+stringData:
+  DB_POSTGRESDB_USER: changeUser
+  DB_POSTGRESDB_PASSWORD: changePassword
+  N8N_ENCRYPTION_KEY: changeThis
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,37 +55,23 @@ spec:
       labels:
         service: n8n
     spec:
+      restartPolicy: Always
       containers:
-        - command:
+        - name: n8n
+          image: n8nio/n8n:latest
+          command:
             - /bin/sh
           args:
             - -c
             - sleep 5; n8n start
           env:
-            - name: DB_TYPE
-              value: postgresdb
-            - name: DB_POSTGRESDB_HOST
-              value: postgres.n8n.svc.cluster.local
-            - name: DB_POSTGRESDB_PORT
-              value: "5432"
-            - name: DB_POSTGRESDB_DATABASE
-              value: n8n
-            - name: DB_POSTGRESDB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres
-                  key: POSTGRES_NON_ROOT_USER
-            - name: DB_POSTGRESDB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres
-                  key: POSTGRES_NON_ROOT_PASSWORD
-            - name: N8N_PROTOCOL
-              value: http
-            - name: N8N_PORT
-              value: "5678"
-          image: n8nio/n8n:latest
-          name: n8n
+            - name: N8N_DISABLE_PRODUCTION_MAIN_PROCESS
+              value: "true"
+          envFrom:
+          - configMapRef:
+              name: n8n-env
+          - secretRef:
+              name: n8n-secrets
           ports:
             - containerPort: 5678
           resources:
@@ -66,20 +79,6 @@ spec:
               memory: "250Mi"
             limits:
               memory: "500Mi"
-          volumeMounts:
-            - mountPath: /home/node/.n8n
-              name: n8n-pv
-      restartPolicy: Always
-      volumes:
-        - name: n8n-pv
-          persistentVolumeClaim:
-            claimName: n8n-pv
-        # - name: n8n
-        #   secret:
-        #     secretName: n8n
-        - name: postgres
-          secret:
-            secretName: postgres
 
 ---
 apiVersion: v1
@@ -92,16 +91,97 @@ spec:
   selector:
     service: n8n
   ports:
-    - name: "5678"
-      port: 5678
-      targetPort: 5678
-      protocol: TCP
+    - port: 5678
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: worker
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: worker
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: worker
+          image: n8nio/n8n:latest
+          args:
+            - worker
+          envFrom:
+          - configMapRef:
+              name: n8n-env
+          - secretRef:
+              name: n8n-secrets
+          resources:
+            requests:
+              memory: "250Mi"
+            limits:
+              memory: "500Mi"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook
+  namespace: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: webhook
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: webhook
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: webhook
+          image: n8nio/n8n:latest
+          args:
+            - webhook
+          envFrom:
+          - configMapRef:
+              name: n8n-env
+          - secretRef:
+              name: n8n-secrets
+          resources:
+            requests:
+              memory: "250Mi"
+            limits:
+              memory: "500Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook
+  namespace: n8n
+spec:
+  type: ClusterIP
+  selector:
+    service: webhook
+  ports:
+    - port: 5678
 
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: n8n
+  namespace: n8n
 spec:
   rules:
   - http:
@@ -111,5 +191,35 @@ spec:
         backend:
           service:
             name: n8n
+            port:
+              number: 5678
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webhook
+  namespace: n8n
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: '/(webhook|webhook-waiting)/.*'
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: webhook
+            port:
+              number: 5678
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webhook
             port:
               number: 5678
