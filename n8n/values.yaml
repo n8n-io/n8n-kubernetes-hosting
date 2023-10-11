@@ -1,0 +1,14 @@
+n8n:
+  imageTag: latest
+  deploymentMode: scale # single or scale
+  encryptionKey: change-this
+  domainName: instance1.domain.com
+  storageSize: 2Gi
+  db:
+    name: n8n
+    user: n8n
+    password: change-this
+  concurrency: 20
+
+resources:
+  memoryLimit: 1Gi

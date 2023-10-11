@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-configmap-env
+data:
+  N8N_PORT: "5678"
+  WEBHOOK_URL: https://{{ .Values.n8n.domainName }}
+  N8N_ENCRYPTION_KEY: {{ .Values.n8n.encryptionKey }}
+  {{- if eq .Values.n8n.deploymentMode "scale" }}
+  EXECUTIONS_MODE: queue
+  N8N_DISABLE_PRODUCTION_MAIN_PROCESS: "true"
+  QUEUE_BULL_REDIS_HOST: redis.{{.Release.Name}}.svc.cluster.local
+  DB_TYPE: postgresdb
+  # TODO: add support for external postgres
+  DB_POSTGRESDB_HOST: postgres.{{.Release.Name}}.svc.cluster.local
+  DB_POSTGRESDB_DATABASE: {{ .Values.n8n.db.name }}
+  DB_POSTGRESDB_USER: {{ .Values.n8n.db.user }}
+  DB_POSTGRESDB_PASSWORD: {{ .Values.n8n.db.password }}
+  {{- end }}

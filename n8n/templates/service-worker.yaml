@@ -1,0 +1,30 @@
+{{- if eq .Values.n8n.deploymentMode "scale" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: worker
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        service: worker
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: worker
+          image: n8nio/n8n:{{ .Values.n8n.imageTag }}
+          args: ["worker", "--concurrency={{ .Values.n8n.concurrency }}"]
+          envFrom:
+          - configMapRef:
+              name: n8n-configmap-env
+          resources:
+            limits:
+              memory: {{ .Values.resources.memoryLimit }}
+
+{{- end }}

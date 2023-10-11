@@ -1,0 +1,12 @@
+{{- if eq .Values.n8n.deploymentMode "simple" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.n8n.storageSize }}
+{{- end }}

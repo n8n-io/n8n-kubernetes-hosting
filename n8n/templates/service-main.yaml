@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: n8n
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        service: n8n
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: n8n
+          image: n8nio/n8n:{{ .Values.n8n.imageTag }}
+          args: ["start"]
+          envFrom:
+          - configMapRef:
+              name: n8n-configmap-env
+          resources:
+            limits:
+              memory: {{ .Values.resources.memoryLimit }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+spec:
+  type: ClusterIP
+  selector:
+    service: n8n
+  ports:
+    - port: 5678
