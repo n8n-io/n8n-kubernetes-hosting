@@ -10,5 +10,18 @@ n8n:
     password: change-this
   concurrency: 20
 
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  #
+  # Traefik ingress example
+  #
+  # className: traefik
+  # annotations:
+  #   traefik.ingress.kubernetes.io/router.entrypoints: websecure
+  #   traefik.ingress.kubernetes.io/router.tls: "true"
+  #   traefik.ingress.kubernetes.io/router.tls.certresolver: le
+
 resources:
   memoryLimit: 1Gi
